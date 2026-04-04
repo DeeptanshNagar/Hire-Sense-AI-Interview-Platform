@@ -1,0 +1,249 @@
+import { createContext, useContext, useMemo, useState } from "react";
+import {
+  conversationTurn,
+  evaluateAnswer,
+  generateFinalSummary,
+  generateQuestion,
+  parseResume
+} from "../services/interviewApi";
+
+const InterviewContext = createContext(null);
+
+export function InterviewProvider({ children }) {
+  const [setup, setSetup] = useState({
+    role: "",
+    interviewType: "behavioral",
+    difficulty: "entry",
+    parsedResume: null,
+    voiceId: ""
+  });
+
+  const [session, setSession] = useState({
+    qaHistory: [],
+    evaluations: []
+  });
+
+  const [currentQuestion, setCurrentQuestion] = useState(null);
+  const [latestFeedback, setLatestFeedback] = useState(null);
+  const [finalSummary, setFinalSummary] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState("");
+
+  function resetSession() {
+    setSession({
+      qaHistory: [],
+      evaluations: []
+    });
+    setCurrentQuestion(null);
+    setLatestFeedback(null);
+    setFinalSummary(null);
+    setApiError("");
+  }
+
+  async function requestQuestion() {
+    setIsLoading(true);
+    setApiError("");
+
+    try {
+      const result = await generateQuestion({
+        role: setup.role,
+        interviewType: setup.interviewType,
+        difficulty: setup.difficulty,
+        previousQuestions: session.qaHistory.map((item) => item.question),
+        conversationHistory: session.qaHistory.map((item, index) => ({
+          question: item.question,
+          answer: item.answer,
+          score: session.evaluations[index]?.score
+        })),
+        parsedResume: setup.parsedResume || null
+      });
+
+      setCurrentQuestion(result);
+      return result;
+    } catch (error) {
+      setApiError(error.message);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function requestAnswerEvaluation({ question, answer }) {
+    setIsLoading(true);
+    setApiError("");
+
+    try {
+      const result = await evaluateAnswer({
+        role: setup.role,
+        interviewType: setup.interviewType,
+        difficulty: setup.difficulty,
+        question,
+        answer,
+        parsedResume: setup.parsedResume || null
+      });
+
+      setLatestFeedback(result);
+      return result;
+    } catch (error) {
+      setApiError(error.message);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function requestFinalSummary() {
+    setIsLoading(true);
+    setApiError("");
+
+    try {
+      const result = await generateFinalSummary({
+        role: setup.role,
+        interviewType: setup.interviewType,
+        difficulty: setup.difficulty,
+        qaHistory: session.qaHistory,
+        evaluations: session.evaluations,
+        parsedResume: setup.parsedResume || null
+      });
+
+      setFinalSummary(result);
+      return result;
+    } catch (error) {
+      setApiError(error.message);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function requestConversationTurn({ question, answer }) {
+    setIsLoading(true);
+    setApiError("");
+
+    try {
+      const conversationHistory = session.qaHistory.map((item, index) => ({
+        question: item.question,
+        answer: item.answer,
+        score: session.evaluations[index]?.score
+      }));
+
+      const result = await conversationTurn({
+        role: setup.role,
+        interviewType: setup.interviewType,
+        difficulty: setup.difficulty,
+        question,
+        answer,
+        conversationHistory,
+        parsedResume: setup.parsedResume || null
+      });
+
+      const evaluation = result?.evaluation || null;
+      const nextQuestion = result?.nextQuestion || null;
+      const interviewerResponse = String(result?.interviewerResponse || "").trim();
+
+      if (evaluation) {
+        setLatestFeedback(evaluation);
+      }
+
+      setSession((prev) => ({
+        qaHistory: [
+          ...prev.qaHistory,
+          {
+            question,
+            answer,
+            interviewerResponse
+          }
+        ],
+        evaluations: evaluation ? [...prev.evaluations, evaluation] : prev.evaluations
+      }));
+
+      if (nextQuestion) {
+        setCurrentQuestion(nextQuestion);
+      }
+
+      return result;
+    } catch (error) {
+      setApiError(error.message);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function requestResumeParsing({ resumeText, resumeFile, targetRoleHint }) {
+    setIsLoading(true);
+    setApiError("");
+
+    try {
+      const result = await parseResume({
+        resumeText,
+        resumeFile,
+        targetRoleHint
+      });
+
+      setSetup((prev) => ({
+        ...prev,
+        parsedResume: result
+      }));
+
+      return result;
+    } catch (error) {
+      setApiError(error.message);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  function addCompletedAnswer({ question, answer, evaluation }) {
+    setSession((prev) => ({
+      qaHistory: [...prev.qaHistory, { question, answer }],
+      evaluations: [...prev.evaluations, evaluation]
+    }));
+  }
+
+  const value = useMemo(
+    () => ({
+      setup,
+      setSetup,
+      session,
+      setSession,
+      resetSession,
+      currentQuestion,
+      setCurrentQuestion,
+      latestFeedback,
+      setLatestFeedback,
+      finalSummary,
+      setFinalSummary,
+      isLoading,
+      apiError,
+      requestQuestion,
+      requestAnswerEvaluation,
+      requestConversationTurn,
+      requestFinalSummary,
+      addCompletedAnswer,
+      requestResumeParsing
+    }),
+    [
+      setup,
+      session,
+      currentQuestion,
+      latestFeedback,
+      finalSummary,
+      isLoading,
+      apiError
+    ]
+  );
+
+  return <InterviewContext.Provider value={value}>{children}</InterviewContext.Provider>;
+}
+
+export function useInterview() {
+  const context = useContext(InterviewContext);
+
+  if (!context) {
+    throw new Error("useInterview must be used inside InterviewProvider");
+  }
+
+  return context;
+}
