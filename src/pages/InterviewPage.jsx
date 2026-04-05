@@ -269,6 +269,7 @@ function InterviewPage() {
             throw new Error("No audio captured. Please try again.");
           }
 
+          // Use AudioContext to normalize the sample rate and parse out clean PCM16
           const audioBase64 = await audioBlobToPcm16Base64(recordedBlob, { targetSampleRate: 16000 });
           const result = await transcribeVoice({ audioBase64 });
           const transcript = String(result?.transcript || "").trim();

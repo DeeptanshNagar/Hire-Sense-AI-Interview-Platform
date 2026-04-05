@@ -7,29 +7,133 @@ const STEPS = [
   { path: "/summary",   label: "Summary" }
 ];
 
+// Pre-calculate Cyan Network Geometry (Dual-Edge Clustered)
+const CYAN_NETWORK = (() => {
+  const nodes = [];
+  const lines = [];
+
+  const pseudoRandom = (seed) => {
+    let x = Math.sin(seed++) * 10000;
+    return x - Math.floor(x);
+  };
+
+  for (let i = 0; i < 160; i++) {
+    const pr1 = pseudoRandom(i * 13.1);
+    const pr2 = pseudoRandom(i * 29.3);
+    const pr3 = pseudoRandom(i * 37.9);
+    
+    // Half on left, half on right
+    const isLeftSide = i % 2 === 0;
+
+    let x, distanceToEdge;
+    if (isLeftSide) {
+      x = (pr1 * pr1) * 400; // bias towards x = 0
+      distanceToEdge = x;
+    } else {
+      x = 1000 - (pr1 * pr1) * 400; // bias towards x = 1000
+      distanceToEdge = 1000 - x;
+    }
+    
+    // Bias somewhat randomly across y, slightly expanding past boundaries
+    const y = -50 + pr2 * 700; 
+    
+    const isCore = distanceToEdge < 150;
+    
+    const r = isCore ? 1.5 + pr3 * 2.5 : 1 + pr3;
+    const opacity = isCore ? (0.7 + pr1 * 0.3) : Math.max(0.1, 1 - (distanceToEdge / 400));
+    
+    nodes.push({ x, y, r, opacity, isCore });
+  }
+
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      const n1 = nodes[i];
+      const n2 = nodes[j];
+      
+      const dist = Math.hypot(n1.x - n2.x, n1.y - n2.y);
+      let threshold = 90; 
+      if (n1.isCore || n2.isCore) threshold = 140; 
+      
+      if (dist < threshold) {
+        if (dist > 60 && pseudoRandom(i * j) > 0.4) continue;
+
+        const isThick = dist < 70 && pseudoRandom(i + j) > 0.5;
+        const strokeWidth = isThick ? 0.8 + pseudoRandom(i * j) * 1 : 0.4 + pseudoRandom(i + j) * 0.4;
+        
+        let opacity = 1 - (dist / threshold);
+        // Dim lines that are far from the edges
+        const avgX = (n1.x + n2.x) / 2;
+        const avgDistEdge = Math.min(avgX, 1000 - avgX);
+        opacity *= Math.max(0.1, 1 - (avgDistEdge / 400));
+
+        lines.push({ 
+          x1: n1.x, y1: n1.y, 
+          x2: n2.x, y2: n2.y, 
+          strokeWidth,
+          opacity: opacity * (isThick ? 0.9 : 0.4)
+        });
+      }
+    }
+  }
+
+  return { nodes, lines };
+})();
 function AppShell({ children }) {
   const location = useLocation();
   const isLanding = location.pathname === "/";
   const currentStep = STEPS.findIndex(s => s.path === location.pathname);
 
   return (
-    <div className="min-h-screen" style={{ background: "#060d1e" }}>
+    <div 
+      className="min-h-screen relative overflow-hidden" 
+      style={{ backgroundColor: "#020418" }}
+    >
 
-      {/* Ambient background orbs */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none" style={{ zIndex: 0 }}>
-        <div className="orb" style={{ width: 600, height: 600, top: -200, left: -100, background: "rgba(8, 145, 178, 0.07)" }} />
-        <div className="orb" style={{ width: 400, height: 400, bottom: -100, right: -50, background: "rgba(167, 139, 250, 0.05)" }} />
+      {/* Cyan Geometric Network Background Effect */}
+      <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0 }}>
+        
+        {/* Deep blue void base (Lighter) */}
+        <div className="absolute inset-0" style={{
+          background: `
+            radial-gradient(ellipse at 100% 50%, rgba(0, 150, 255, 0.07) 0%, transparent 60%),
+            radial-gradient(ellipse at 0% 50%, rgba(0, 150, 255, 0.07) 0%, transparent 60%),
+            linear-gradient(135deg, #050813 0%, #010309 100%)
+          `
+        }} />
+
+        {/* Network Field SVG */}
+        <svg viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid slice" className="absolute inset-0 w-full h-full opacity-90">
+          
+          {/* Connecting Lines */}
+          <g>
+            {CYAN_NETWORK.lines.map((l, i) => (
+              <line 
+                key={`l${i}`} 
+                x1={l.x1} y1={l.y1} 
+                x2={l.x2} y2={l.y2} 
+                stroke="#00ccff" 
+                strokeWidth={l.strokeWidth} 
+                opacity={l.opacity}
+              />
+            ))}
+          </g>
+
+          {/* Nodes */}
+          <g>
+            {CYAN_NETWORK.nodes.map((n, i) => (
+              <circle 
+                key={`n${i}`} 
+                cx={n.x} cy={n.y} 
+                r={n.r} 
+                fill="#00ffff" 
+                opacity={n.opacity} 
+              >
+                 {n.isCore && <animate attributeName="opacity" values={`${n.opacity};${n.opacity * 0.4};${n.opacity}`} dur={`${2 + i % 3}s`} repeatCount="indefinite" />}
+              </circle>
+            ))}
+          </g>
+        </svg>
       </div>
-
-      {/* Grid background */}
-      <div
-        className="fixed inset-0 pointer-events-none"
-        style={{
-          zIndex: 0,
-          backgroundImage: "linear-gradient(rgba(34,211,238,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.03) 1px, transparent 1px)",
-          backgroundSize: "48px 48px"
-        }}
-      />
 
       <div className="relative mx-auto flex min-h-screen max-w-4xl flex-col px-5 py-6" style={{ zIndex: 1 }}>
 
@@ -99,7 +203,7 @@ function AppShell({ children }) {
         <main className="flex-1">{children}</main>
 
         <footer className="mt-8 text-center" style={{ color: "#1d3a55", fontSize: "0.7rem" }}>
-          Powered by Deeptansh Nagar
+          Made by Deeptansh Nagar
         </footer>
       </div>
     </div>

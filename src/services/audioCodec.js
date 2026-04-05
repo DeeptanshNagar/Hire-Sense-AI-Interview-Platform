@@ -120,7 +120,9 @@ export async function audioBlobToPcm16Base64(blob, { targetSampleRate = 16000 } 
     const pcmBytes = floatTo16BitPCM(resampled);
     return uint8ArrayToBase64(pcmBytes);
   } finally {
-    await audioContext.close();
+    if(audioContext.state !== 'closed') {
+      await audioContext.close();
+    }
   }
 }
 
@@ -128,4 +130,18 @@ export function pcm16Base64ToWavUrl(base64, { sampleRate = 24000, channelCount =
   const pcmBytes = base64ToUint8Array(base64);
   const wavBlob = createWavBlobFromPcm16(pcmBytes, sampleRate, channelCount);
   return URL.createObjectURL(wavBlob);
+}
+
+// Bypass PCM conversion entirely - just encode the raw file
+export async function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const dataUrl = reader.result;
+      const base64 = dataUrl.split(',')[1];
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 }
