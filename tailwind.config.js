@@ -9,7 +9,7 @@ export default {
       },
       colors: {
         brand: {
-          50:  "#ecfeff",
+          50: "#ecfeff",
           100: "#cffafe",
           200: "#a5f3fc",
           300: "#67e8f9",
@@ -37,18 +37,18 @@ export default {
       keyframes: {
         "pulse-ring": {
           "0%, 100%": { boxShadow: "0 0 0 0 rgba(34, 211, 238, 0.4)" },
-          "50%":       { boxShadow: "0 0 0 14px rgba(34, 211, 238, 0)" }
+          "50%": { boxShadow: "0 0 0 14px rgba(34, 211, 238, 0)" }
         },
         "fade-up": {
-          "0%":   { opacity: "0", transform: "translateY(16px)" },
+          "0%": { opacity: "0", transform: "translateY(16px)" },
           "100%": { opacity: "1", transform: "translateY(0)" }
         },
         "wave": {
           "0%, 100%": { transform: "scaleY(0.4)" },
-          "50%":       { transform: "scaleY(1.0)" }
+          "50%": { transform: "scaleY(1.0)" }
         },
         "glow": {
-          "0%":   { opacity: "0.5" },
+          "0%": { opacity: "0.5" },
           "100%": { opacity: "1" }
         }
       },
